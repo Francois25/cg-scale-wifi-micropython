@@ -174,7 +174,7 @@ function live_on( config ) {
   live_to = setTimeout(
       function(){
         req( "getlive=1"+((config)?"&config=1":""), live_refresh ); }
-      , 500);
+      , 1000);
 }
 function live_off() {
   if (live_to) {
@@ -443,6 +443,7 @@ function init() {
           </tr>
         </table>
       </div>
+
     </div>
   </body>
 </html>

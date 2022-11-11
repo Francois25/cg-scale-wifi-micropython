@@ -249,7 +249,7 @@ config = read_config()
 split_config(config)
 lc_rear.set_scale(lcrearcal)
 lc_front.set_scale(lcfrontcal)
-ipaddress, ap = connection(ssid='your_ssid', password='your_password', name='CGScale')
+ipaddress, ap = connection(ssid='<Your_SSID>', password='<Your_Password>', name='CGScale')
 if ipaddress:
     if ap:
         set_rgb(1,0,1)
