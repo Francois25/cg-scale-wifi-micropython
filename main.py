@@ -1,5 +1,5 @@
 from utime import ticks_ms, ticks_diff, sleep, sleep_ms
-from machine import Pin
+from machine import Pin, ADC
 from hx711_gpio import *
 from wificonnect import *
 import uasyncio
@@ -20,27 +20,14 @@ weight_front = 0
 weight = weight_rear + weight_front
 cg = 0
 
+
 def set_rgb(r=0, g=0, b=0):
-    ledred.value(not r)
-    ledgreen.value(not g)
-    ledblue.value(not b)
-    
-def connection(ssid='', password='', name=''):
-    ip = ''
-    ap = True
-    try:
-        ip = connectSTA(ssid, password,name)
-        ap = False
-    except:
-        ip = ''
-        try:
-            ip = connectAP(name) 
-        except:
-            ip = ''
-    return ip, ap
+    ledred.value(r)
+    ledgreen.value(g)
+    ledblue.value(b)
 
 
-def hx_init(pin_out,pin_sck):        # create object load_cell; pin_out,pin_sck = int
+def hx_init(pin_out, pin_sck):  # create object load_cell; pin_out,pin_sck = int
     out = Pin(pin_out, Pin.IN, pull=Pin.PULL_DOWN)
     sck = Pin(pin_sck, Pin.OUT)
     hx = HX711(sck, out)
@@ -52,17 +39,20 @@ def hx_init(pin_out,pin_sck):        # create object load_cell; pin_out,pin_sck 
 
 def tare(hx, times=15):
     hx.tare(times)
-    
+
+
 def write_config(config):
-    f = open('config.json','w')
+    f = open('config.json', 'w')
     json.dump(config, f)
     f.close()
 
+
 def read_config():
-    f = open('config.json','r')
+    f = open('config.json', 'r')
     config = json.load(f)
     f.close()
     return config
+
 
 def split_config(config):
     global lcfrontcal, lcrearcal, supportsdist, supportledist, supportledist, lang
@@ -77,16 +67,17 @@ def split_config(config):
     print('supportsdist =', supportsdist)
     print('supportledist =', supportledist)
     print('lang =', lang)
-    
+
 
 def update_weight(hx):
     global MIN_WEIGHT, MAX_WEIGHT
-    weight = round(hx.get_units(),2)
+    weight = round(hx.get_units(), 2)
     if weight < MIN_WEIGHT:
         weight = 0.00
     elif weight > MAX_WEIGHT:
         weight = MAX_WEIGHT
     return weight
+
 
 def calc_cg(rear, front):
     global supportsdist, supportledist
@@ -103,18 +94,22 @@ def calc_cg(rear, front):
         cg = -1.0
         return cg
     else:
-      cg = round(compute + supportledist,1)
+        cg = round(compute + supportledist, 1)
     return cg
+
 
 def calibrate(hx):
     global config
     raw_weight = hx.read_average(times=100)
     divider = (raw_weight - hx.OFFSET) / config['calweight']
-    hx.set_scale(divider) 
+    hx.set_scale(divider)
     return divider
-    
-# ---- Routing Picoweb ------------------------------------ 
+
+
+# ---- Routing Picoweb ------------------------------------
 app = picoweb.WebApp(__name__)
+
+
 @app.route("/xhr")
 def index(req, resp):
     global weight_rear, weight, weight_front, cg, lang
@@ -123,7 +118,7 @@ def index(req, resp):
     global config
     req.parse_qs()
     request = req.form
-    if (req.form.get('getconfig') == '1') and (len(req.form) ==1):
+    if (req.form.get('getconfig') == '1') and (len(req.form) == 1):
         config = read_config()
         json = config
     elif req.form.get('getlive') == '1':
@@ -138,7 +133,7 @@ def index(req, resp):
         else:
             weight_rear = update_weight(lc_rear)
             weight_front = update_weight(lc_front)
-            weight = weight_rear+weight_front
+            weight = weight_rear + weight_front
             cg = calc_cg(weight_rear, weight_front)
             json = {"err": False,
                     "weight_rear": f"{weight_rear:07.2f}",
@@ -162,59 +157,59 @@ def index(req, resp):
             json = {"err": True}
     elif req.form.get('setconfig') == '1':
         mod = 0
-        if req.form.get('lcrearcal','false') != 'false':
+        if req.form.get('lcrearcal', 'false') != 'false':
             lcrearcal = float(req.form.get('lcrearcal'))
             config["lcrearcal"] = lcrearcal
             lc_rear.set_scale(lcrearcal)
             mod = 2
             json = {"err": False,
                     "updated": mod}
-        elif req.form.get('lcfrontcal','false') != 'false':
+        elif req.form.get('lcfrontcal', 'false') != 'false':
             lcfrontcal = float(req.form.get('lcfrontcal'))
             config["lcfrontcal"] = lcfrontcal
             lc_front.set_scale(lcfrontcal)
             mod = 2
             json = {"err": False,
                     "updated": mod}
-        elif req.form.get('calweight','false') != 'false':
+        elif req.form.get('calweight', 'false') != 'false':
             calweight = float(req.form.get('calweight'))
             config["calweight"] = calweight
             mod = 2
             json = {"err": False,
                     "updated": mod}
-        elif req.form.get('lang','false') != 'false':
+        elif req.form.get('lang', 'false') != 'false':
             lang = int(req.form.get('lang'))
             config["lang"] = lang
             mod = 1
             json = {"err": False,
                     "updated": mod}
-        elif req.form.get('supportsdist','false') != 'false':
+        elif req.form.get('supportsdist', 'false') != 'false':
             supportsdist = int(req.form.get('supportsdist'))
             config["supportsdist"] = supportsdist
             lc_front.set_scale(supportsdist)
             print("SET supportsdist", supportsdist)
             json = {"err": False,
                     "updated": mod}
-        elif req.form.get('supportledist','false') != 'false':
+        elif req.form.get('supportledist', 'false') != 'false':
             supportledist = int(req.form.get('supportledist'))
             config["supportledist"] = supportledist
             lc_front.set_scale(supportledist)
             mod = 1
             json = {"err": False,
                     "updated": mod}
-        elif req.form.get('save','false') != 'false':
+        elif req.form.get('save', 'false') != 'false':
             write_config(config)
             mod = 1
             json = {"err": False,
                     "updated": mod}
-    yield from picoweb.jsonify(resp,json)
+    yield from picoweb.jsonify(resp, json)
 
 
 @app.route("/")
 def index(req, resp):
     yield from picoweb.start_response(resp)
     yield from app.sendfile(resp, '/www/index.html')
-    set_rgb(0,1,0)
+    # set_rgb(0,1,0)
 
 
 @app.route("/style.css")
@@ -230,17 +225,19 @@ def index(req, resp):
     yield from picoweb.start_response(resp)
     try:
         with open("www/background_main.jpg", 'rb') as img_binary:
-            img= img_binary.read()
+            img = img_binary.read()
         yield from resp.awrite(img)
     except Exception:
         print("Image file not found.")
         pass
-    
+
+
 # --------------- main --------------------
 import ulogging as logging
+
 logging.basicConfig(level=logging.INFO)
 
-set_rgb(1,0,0)
+set_rgb()
 # rear load_cell
 lc_rear = hx_init(23, 22)
 # front  load_cell
@@ -249,13 +246,27 @@ config = read_config()
 split_config(config)
 lc_rear.set_scale(lcrearcal)
 lc_front.set_scale(lcfrontcal)
-ipaddress, ap = connection(ssid='<Your_SSID>', password='<Your_Password>', name='CGScale')
-if ipaddress:
-    if ap:
-        set_rgb(1,0,1)
-    else:
-        set_rgb(0,0,1)
-    app.run(debug=False, host = ipaddress, port = 80)
-    print("Waitiing for httpRequest...")
+
+# battery capacity
+adc = ADC(Pin(35))
+battery_voltage = adc.read() / 4095 * 3.6  # convertit la valeur en tension (entre 0 et 3,6V)
+battery_level = (battery_voltage - 3.2) / (
+            4.2 - 3.2) * 100  # calcule le niveau de charge en pourcentage (entre 0 et 100%)
+print(f"Voltage de la batterie: {battery_voltage}V")
+print(f"Niveau de la batterie: {battery_level}%")
+if battery_level <= 25:
+    set_rgb(0, 0, 1)
+    sleep(5)
 else:
-    print("No connection....")
+    pass
+
+# Connexion wifi AP
+if connectAP(name='Balance CG'):
+    set_rgb(0, 1, 0)
+    print("Waiting for httpRequest...")
+    app.run(debug=False, host='192.168.4.1', port=80)
+else:
+    set_rgb(0, 0, 1)
+
+
+
